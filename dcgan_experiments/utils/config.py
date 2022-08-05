@@ -22,12 +22,6 @@ class Config(object):
                 'test samples', 
                 'image shape'
             ], 
-            'generator' : [
-                'generator blocks', 
-            ], 
-            'discriminator' : [
-                'discriminator blocks', 
-            ], 
             'hyperparameters' : [
                 'latent dimension', 
                 'learning rate', 
@@ -86,12 +80,6 @@ class Config(object):
         
         check_config(config=config['data'], type='data')
         self.data_config = self.config['data']
-
-        check_config(config=config['generator'], type='generator')
-        self.generator_config = self.config['generator']
-
-        check_config(config=config['discriminator'], type='discriminator')
-        self.discriminator_config = self.config['discriminator']
 
         check_config(config=config['hyperparameters'], type='hyperparameters')
         self.hyperparameters = self.config['hyperparameters']

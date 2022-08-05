@@ -95,11 +95,9 @@ class Generator(nn.Module):
         Returns:
             The output sample.
         '''
-        x = z
-
         # Input block
-        x = self.in_block['in_block'](x)
-
+        x = self.in_block['in_block'](z)
+        
         # Intermediate blocks
         for i in range(len(self.inter_blocks)):
             x = self.inter_blocks[f'inter_block_{i+1}'](x)

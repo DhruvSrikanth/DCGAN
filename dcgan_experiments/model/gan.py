@@ -17,13 +17,11 @@ import time
 
 
 class DCGAN(object):
-    def __init__(self, z_dim: int, g_blocks: int, d_blocks: int, out_shape: tuple, device: torch.device, name: str=None) -> None:
+    def __init__(self, z_dim: int, out_shape: tuple, device: torch.device, name: str=None) -> None:
         '''
         Initialize the GAN.
         Parameters:
-            z_dim: The dimension of the latent space.
-            g_blocks: The number of blocks in the generator.
-            d_blocks: The number of blocks in the discriminator.
+            z_dim: The dimension of the latent space. 
             out_shape: The shape of the output image.
             device: The device to use.
             name: The name of the GAN.
@@ -33,16 +31,14 @@ class DCGAN(object):
         super(DCGAN, self).__init__()
         self.name = "Vanilla GAN" if name is None else name
         self.z_dim = z_dim
-        self.g_blocks = g_blocks
-        self.d_blocks = d_blocks
         self.out_shape = out_shape
         self.device = device
 
         # Initialize generator
-        self.generator = Generator(z_dim=self.z_dim, n_blocks=self.g_blocks, out_shape=self.out_shape, name='Generator').to(self.device)
+        self.generator = Generator(z_dim=self.z_dim, out_shape=self.out_shape, name='Generator').to(self.device)
 
         # Initialize discriminator
-        self.discriminator = Discriminator(in_shape=self.out_shape, n_blocks=self.d_blocks, name='Discriminator').to(self.device)
+        self.discriminator = Discriminator(in_shape=self.out_shape, name='Discriminator').to(self.device)
 
     def train(self, dataloader, generator_strategy: dict, discriminator_strategy: dict, epochs: int, starting_epoch :int, sample_interval: int, sample_save_path: str, model_save_path: str, log_path: str, experiment_number: int) -> None:
         '''
@@ -76,9 +72,10 @@ class DCGAN(object):
 
             # For each batch in the dataloader
             with tqdm(dataloader, desc=f'Training : {self.name}') as pbar:
-                for imgs, _ in pbar:
+                for imgs, targets in pbar:
                     # Move data to device and configure input
                     real_samples = Variable(imgs.type(torch.FloatTensor)).to(self.device)
+                    real_labels = Variable(targets.type(torch.LongTensor)).to(self.device)
                     
                     # Recompute batch size for current mini batch
                     batch_size = real_samples.size(0)
@@ -260,9 +257,9 @@ class DCGAN(object):
         '''
         # Get the labels for the validity of the samples
         if type == 'real':
-            return Variable(torch.FloatTensor(batch_size, 1).fill_(1.0), requires_grad=False).to(self.device)
+            return Variable(torch.FloatTensor(batch_size, 1, 1, 1).fill_(1.0), requires_grad=False).to(self.device)
         elif type == 'fake':
-            return Variable(torch.FloatTensor(batch_size, 1).fill_(0.0), requires_grad=False).to(self.device)
+            return Variable(torch.FloatTensor(batch_size, 1, 1, 1).fill_(0.0), requires_grad=False).to(self.device)
         else:
             raise ValueError(f'Invalid type: {type}, Valid types include: real, fake.')
 
@@ -274,14 +271,8 @@ class DCGAN(object):
         Returns:
             The sampled noise.
         '''
-        # Sample noise from a normal distribution
-        # z = Variable(torch.FloatTensor(np.random.normal(0, 1, (batch_size, self.z_dim)))).to(self.device)
-
         # Sample noise from a multivariate distribution
-        z = Variable(torch.FloatTensor(np.random.multivariate_normal([0]*self.z_dim, np.eye(self.z_dim), batch_size)).to(self.device))
-
-        # sample noise from a uniform distribution
-        # z = Variable(torch.FloatTensor(np.random.uniform(-1, 1, (batch_size, self.z_dim)))).to(self.device)
+        z = Variable(torch.FloatTensor(np.reshape(np.random.multivariate_normal([0]*100, np.eye(self.z_dim), batch_size), newshape=(batch_size, self.z_dim, 1, 1))).to(self.device))
 
         return z
 

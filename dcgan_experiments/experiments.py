@@ -19,7 +19,7 @@ class Experiments():
         # Transforms to be applied to the data (convert to tensor, normalize, etc.)
         transform = []
         transform.append(transforms.ToTensor())
-        transform.append(transforms.Normalize((0.1307,), (0.3081,)))
+        transform.append(transforms.Normalize((0.5,), (0.5,)))
         
         # Compose the transforms
         transform = transforms.Compose(transform)
@@ -49,7 +49,7 @@ class Experiments():
         device = torch.device(device=use_device)
 
         # Create the model
-        model = DCGAN(z_dim=self.config.hyperparameters['latent dimension'], g_blocks=self.config.generator_config['generator blocks'], d_blocks=self.config.discriminator_config['discriminator blocks'], out_shape=self.config.data_config['image shape'], device=device, name="DCGAN")
+        model = DCGAN(z_dim=self.config.hyperparameters['latent dimension'], out_shape=self.config.data_config['image shape'], device=device, name="DCGAN")
         starting_epoch = 0
         if checkpoint is not None:
             if 'generator' in checkpoint and 'discriminator' in checkpoint and 'epoch' in checkpoint:

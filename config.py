@@ -6,18 +6,12 @@ config = {
         
         }, 
     'data' : {
-        'batch size': 32,
+        'batch size': 64,
         'num workers': 8, 
-        'image shape': (1, 28, 28),
+        'image shape': (1, 64, 64),
         'train samples': 60000, 
         'test samples': 4000
         }, 
-    'generator' : {
-         'generator blocks' : 3, 
-    }, 
-    'discriminator' : {
-        'discriminator blocks' : 3, 
-    }, 
     'hyperparameters' : {
         'latent dimension': 100,
         'learning rate': 0.0002, 
