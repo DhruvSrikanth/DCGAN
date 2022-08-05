@@ -101,7 +101,7 @@ class Generator(nn.Module):
         x = self.in_block['in_block'](x)
 
         # Intermediate blocks
-        for i in range(self.n_blocks):
+        for i in range(len(self.inter_blocks)):
             x = self.inter_blocks[f'inter_block_{i+1}'](x)
         
         # Output block
