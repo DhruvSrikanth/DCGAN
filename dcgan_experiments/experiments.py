@@ -20,6 +20,7 @@ class Experiments():
         transform = []
         transform.append(transforms.ToTensor())
         transform.append(transforms.Normalize((0.5,), (0.5,)))
+        transform.append(transforms.Resize(size=config.data_config['image shape'][1:], interpolation=transforms.InterpolationMode.BILINEAR))
         
         # Compose the transforms
         transform = transforms.Compose(transform)
