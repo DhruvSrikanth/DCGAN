@@ -44,7 +44,6 @@ class DCGAN(object):
         # Initialize discriminator
         self.discriminator = Discriminator(in_shape=self.out_shape, n_blocks=self.d_blocks, name='Discriminator').to(self.device)
 
-
     def train(self, dataloader, generator_strategy: dict, discriminator_strategy: dict, epochs: int, starting_epoch :int, sample_interval: int, sample_save_path: str, model_save_path: str, log_path: str, experiment_number: int) -> None:
         '''
         Training loop for the GAN.
@@ -366,12 +365,12 @@ class DCGAN(object):
         
         # Forward pass to get fake sample
         fake_sample = self.generator(z)
-        writer.add_histogram('Inferred Distribution', values=transforms.normalize_tensor(fake_sample), global_step=epoch, bins=256)
+        writer.add_histogram('Inferred Distribution', values=transforms.normalize_tensor(fake_sample), global_step=epoch, bins=10)
 
         # Get real sample from dataloader
         real_sample = next(iter(dataloader))[0]
         real_sample = Variable(torch.FloatTensor(real_sample)).to(self.device)
-        writer.add_histogram('Actual Distribution', values=transforms.normalize_tensor(real_sample), global_step=epoch, bins=256)
+        writer.add_histogram('Actual Distribution', values=transforms.normalize_tensor(real_sample), global_step=epoch, bins=10)
     
     def visualize_model(self, batch_size: int, writer):
         '''

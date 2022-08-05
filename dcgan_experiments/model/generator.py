@@ -5,12 +5,11 @@ import typing
 import numpy as np
 
 class Generator(nn.Module):
-    def __init__(self, z_dim: int, n_blocks: int, out_shape: tuple, name:str=None) -> None:
+    def __init__(self, z_dim: int, out_shape: tuple, name:str=None) -> None:
         '''
         Initialize the generator.
         Parameters:
             z_dim: The dimension of the latent space.
-            n_blocks: The number of blocks in the generator.
             out_shape: The shape of the output image.
             name: The name of the generator.
         Returns:
@@ -19,55 +18,55 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         self.name = "Generator" if name is None else name
         self.z_dim = z_dim
-        self.n_blocks = n_blocks
         self.out_shape = out_shape
+        self.n_channels = out_shape[0]
+        self.n_fmaps = out_shape[1]
+        self.n_blocks = np.log2(np.sqrt(self.n_fmaps)).astype(np.int64)
 
-        def block(in_features: tuple, out_features: tuple, normalize: bool=True, regularize: bool=True) -> typing.List[nn.Module]:
+        # Define input block
+        out_channels = self.n_fmaps * np.sqrt(self.n_fmaps).astype(np.int64)
+        self.in_block = nn.ModuleDict(
+            {
+                'in_block' : nn.Sequential(
+                    nn.ConvTranspose2d(in_channels=self.z_dim, out_channels=out_channels, kernel_size=4, stride=1, padding=0, bias=False), 
+                    nn.BatchNorm2d(num_features=out_channels), 
+                    nn.ReLU(inplace=True)
+                )
+            }
+        )
+
+        def normalized_upsampling_block(in_channels: int, out_channels: int) -> typing.List[nn.Module]:
             '''
             Each block that makes up the generator.
-            Parameters:
-                in_features: The input features of the block.
-                out_features: The output features of the block.
-                normalize: Whether or not to add batch normalization.
-                regularize: Whether or not to add regularization.
+            Parameters: 
+                in_channels: The input channels of the block.
+                out_channels: The output channels of the block.
             Returns:
                 A list of modules that make up the block.
             '''
-            # Fully connected layer
-            layers = [nn.Linear(in_features=in_features, out_features=out_features)]
-
-            if normalize:
-                # Batch normalization layer
-                layers.append(nn.BatchNorm1d(num_features=out_features, eps=0.8))
-            
-            # Activation layer
-            layers.append(nn.LeakyReLU(negative_slope=0.2, inplace=True))
-
-            if regularize:
-                # Regularization layer
-                layers.append(nn.Dropout(p=0.5))
-            
+            layers = []
+            layers.append(nn.ConvTranspose2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1, bias=False))
+            layers.append(nn.BatchNorm2d(num_features=out_channels))
+            layers.append(nn.ReLU(inplace=True))
             return layers
-        
-        # Define input block
-        self.in_block = nn.ModuleDict({
-            'in_block': nn.Sequential(*block(in_features=self.z_dim, out_features= 2 * self.z_dim, normalize=False, regularize=False))
-        })
 
+        
         # Define intermediate blocks
         self.inter_blocks = nn.ModuleDict({})
-        in_dim = 2 * self.z_dim
-        for i in range(self.n_blocks):
-            out_dim = 2 * in_dim
-            self.inter_blocks[f'inter_block_{i+1}'] = nn.Sequential(*block(in_features=in_dim, out_features=out_dim, normalize=True, regularize=True))
-            in_dim = out_dim
+        for block_num in range(self.n_blocks):
+            in_channels = out_channels
+            out_channels = in_channels // 2
+            self.inter_blocks[f'inter_block_{block_num+1}'] = nn.Sequential(*normalized_upsampling_block(in_channels=in_channels, out_channels=out_channels))
         
         # Define output block
-        self.out_block = nn.ModuleDict({
-            'out_block': nn.Sequential(
-                nn.Linear(in_features=out_dim, out_features=int(np.prod(self.out_shape))),
-                nn.Tanh())
-        })
+        self.out_block = nn.ModuleDict(
+            {
+                'out_block' : nn.Sequential(
+                    nn.ConvTranspose2d(in_channels=self.n_fmaps, out_channels=self.n_channels, kernel_size=4, stride=2, padding=1, bias=False), 
+                    nn.Tanh()
+                )
+            }
+        )
 
         # Initialize weights
         self.apply(self._init_weights)
@@ -81,11 +80,11 @@ class Generator(nn.Module):
         Returns:
             None
         '''
-        if isinstance(m, nn.Linear):
-            # Initialize weight to random normal
-            nn.init.xavier_normal_(m.weight)
-            # Initialize bias to zero
-            nn.init.zeros_(m.bias)
+        if isinstance(m, nn.Conv2d):
+            torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
+        elif isinstance(m, nn.BatchNorm2d):
+            torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+            torch.nn.init.constant_(m.bias.data, 0.0)
         
     def forward(self, z: torch.FloatTensor) -> torch.FloatTensor:
         '''
@@ -105,9 +104,6 @@ class Generator(nn.Module):
             x = self.inter_blocks[f'inter_block_{i+1}'](x)
         
         # Output block
-        x = self.out_block['out_block'](x)
-        
-        # Reshape output
-        sample = x.view(x.size(0), *self.out_shape)
-        
+        sample = self.out_block['out_block'](x)
+
         return sample
