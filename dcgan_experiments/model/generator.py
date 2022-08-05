@@ -70,6 +70,7 @@ class Generator(nn.Module):
 
         # Initialize weights
         self.apply(self._init_weights)
+        self.n_blocks = len(self.inter_blocks) + 2
 
     @torch.no_grad()
     def _init_weights(self, m: nn.Module) -> None:
