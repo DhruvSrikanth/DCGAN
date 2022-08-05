@@ -7,12 +7,11 @@ import numpy as np
 import warnings
 
 class Discriminator(nn.Module):
-    def __init__(self, in_shape: tuple, n_blocks: int, name:str=None) -> None:
+    def __init__(self, in_shape: tuple, name:str=None) -> None:
         '''
         Initialize the discriminator.
         Parameters:
             in_shape: The shape of the input image.
-            n_blocks: The number of blocks in the discriminator.
             name: The name of the discriminator.
         Returns:
             None
@@ -20,79 +19,73 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.name = "Discriminator" if name is None else name
         self.in_shape = in_shape
-        self.n_blocks = n_blocks
+        self.n_channels = in_shape[0]
+        self.n_fmaps = in_shape[1]
+        self.n_blocks = np.log2(np.sqrt(self.n_fmaps)).astype(np.int64)
         
-        def block(in_features, out_features, normalize=True, regularize=True) -> typing.List[nn.Module]:
+        # Define input block
+        self.in_block = nn.ModuleDict(
+            {
+                'in_block' : nn.Sequential(
+                    nn.Conv2d(in_channels=self.n_channels, out_channels=self.n_fmaps, kernel_size=4, stride=2, padding=1, bias=False), 
+                    nn.LeakyReLU(negative_slope=0.2, inplace=True)
+                )
+            }
+        )
+
+        def intermediate_block(in_channels: int, out_channels: int) -> typing.List[nn.Module]:
             '''
-            Each block that makes up the discriminator.
-            Parameters:
-                in_features: The input features of the block.
-                out_features: The output features of the block.
-                normalize: Whether or not to add batch normalization.
-                regularize: Whether or not to add regularization.
+            Each block that makes up the generator.
+            Parameters: 
+                in_channels: The input channels of the block.
+                out_channels: The output channels of the block.
             Returns:
                 A list of modules that make up the block.
             '''
-            # Fully connected layer
-            layers = [nn.Linear(in_features=in_features, out_features=out_features)]
-
-            if normalize:
-                # Batch normalization layer
-                layers.append(nn.BatchNorm1d(num_features=out_features, eps=0.8))
-            
-            # Activation layer
+            layers = []
+            layers.append(nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=4, stride=2, padding=1, bias=False))
+            layers.append(nn.BatchNorm2d(num_features=out_channels))
             layers.append(nn.LeakyReLU(negative_slope=0.2, inplace=True))
-
-            if regularize:
-                # Regularization layer
-                layers.append(nn.Dropout(p=0.5))
-            
             return layers
+
         
-        # Starting intermediate latent dimension
-        self.inter_dim = 512
-
-        # Define input block
-        self.in_block = nn.ModuleDict({
-            'in_block': nn.Sequential(*block(in_features=int(np.prod(in_shape)), out_features=self.inter_dim, normalize=False, regularize=False))
-        })
-
         # Define intermediate blocks
+        out_channels = self.n_fmaps
         self.inter_blocks = nn.ModuleDict({})
-        in_dim = self.inter_dim
-        for i in range(self.n_blocks):
-            out_dim =  int(in_dim / 2)
-            if out_dim >= 2:
-                self.inter_blocks[f'inter_block_{i+1}'] = nn.Sequential(*block(in_features=in_dim, out_features=out_dim, normalize=True, regularize=True))
-                in_dim = out_dim
-            else:
-                warnings.warn(f'Discriminator limited to {i} blocks')
-                break
-            
+        for block_num in range(self.n_blocks):
+            in_channels = out_channels
+            out_channels = in_channels * 2
+            self.inter_blocks[f'inter_block_{block_num+1}'] = nn.Sequential(*intermediate_block(in_channels=in_channels, out_channels=out_channels))
+        
         # Define output block
-        self.out_block = nn.ModuleDict({
-            'out_block': nn.Sequential(
-                nn.Linear(in_features=out_dim, out_features=1),
-                nn.Sigmoid())
-        })
+        out_channels = self.n_fmaps * np.sqrt(self.n_fmaps).astype(np.int64)
+        self.out_block = nn.ModuleDict(
+            {
+                'out_block' : nn.Sequential(
+                    nn.Conv2d(in_channels=out_channels, out_channels=1, kernel_size=4, stride=1, padding=0, bias=False),
+                    nn.Sigmoid()
+                )
+            }
+        )
 
         # Initialize weights
         self.apply(self._init_weights)
+        self.n_blocks = len(self.inter_blocks) + 2
 
     @torch.no_grad()
     def _init_weights(self, m: nn.Module) -> None:
         '''
-        Initialize the weights of the discriminator.
+        Initialize the weights of the generator.
         Parameters:
             m: The module to initialize.
         Returns:
             None
         '''
-        if isinstance(m, nn.Linear):
-            # Initialize weight to random normal
-            nn.init.xavier_normal_(m.weight)
-            # Initialize bias to zero
-            nn.init.zeros_(m.bias)
+        if isinstance(m, nn.Conv2d):
+            torch.nn.init.normal_(m.weight.data, 0.0, 0.02)
+        elif isinstance(m, nn.BatchNorm2d):
+            torch.nn.init.normal_(m.weight.data, 1.0, 0.02)
+            torch.nn.init.constant_(m.bias.data, 0.0)
         
     def forward(self, x: torch.FloatTensor) -> torch.FloatTensor:
         '''
@@ -102,14 +95,11 @@ class Discriminator(nn.Module):
         Returns:
             The output score.
         '''
-        # Reshape input
-        x = x.view(x.size(0), -1)
-
         # Input block
         x = self.in_block['in_block'](x)
 
         # Intermediate blocks
-        for i in range(self.n_blocks):
+        for i in range(len(self.inter_blocks)):
             x = self.inter_blocks[f'inter_block_{i+1}'](x)
         
         # Output block
